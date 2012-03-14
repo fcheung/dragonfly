@@ -2,8 +2,8 @@ module Dragonfly
   module ImageMagick
     class Analyser
 
-      include Utils
       include Configurable
+      include Utils
 
       def width(temp_object)
         identify(temp_object)[:width]
@@ -22,11 +22,13 @@ module Dragonfly
         attrs = identify(temp_object)
         attrs[:width] <= attrs[:height]
       end
+      alias portrait portrait?
 
       def landscape?(temp_object)
         attrs = identify(temp_object)
         attrs[:width] >= attrs[:height]
       end
+      alias landscape landscape?
 
       def depth(temp_object)
         identify(temp_object)[:depth]

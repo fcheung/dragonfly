@@ -143,6 +143,20 @@ describe Dragonfly::TempObject do
           @temp_object.to_file(@filename)
           File::Stat.new(@filename).mode.to_s(8).should =~ /644$/
         end
+        it "should allow setting different permissions" do
+          @temp_object.to_file(@filename, :mode => 0755)
+          File::Stat.new(@filename).mode.to_s(8).should =~ /755$/
+        end
+        it "should create intermediate subdirs" do
+          filename = 'tmp/gog/mcgee'
+          @temp_object.to_file(filename)
+          File.exists?(filename).should be_true
+          FileUtils.rm_rf('tmp/gog')
+        end
+        it "should allow not creating intermediate subdirs" do
+          filename = 'tmp/gog/mcgee'
+          expect{ @temp_object.to_file(filename, :mkdirs => false) }.to raise_error()
+        end
       end
 
     end
@@ -155,16 +169,6 @@ describe Dragonfly::TempObject do
           part.bytesize.should == 8192
         end
         parts.last.bytesize.should <= 8192
-      end
-      it "should yield the number of bytes specified in the class configuration" do
-        klass = Class.new(Dragonfly::TempObject)
-        temp_object = new_temp_object(File.read(sample_path('round.gif')), klass)
-        klass.block_size = 3001
-        parts = get_parts(temp_object)
-        parts[0...-1].each do |part|
-          part.length.should == 3001
-        end
-        parts.last.length.should <= 3001
       end
     end
     
@@ -210,6 +214,11 @@ describe Dragonfly::TempObject do
       temp_object = new_temp_object('HELLO')
       temp_object.should_not_receive(:tempfile)
       temp_object.each{}
+    end
+    
+    it "should use set the file extension in path from the name" do
+      temp_object = Dragonfly::TempObject.new("hi", :name => 'dark.cloud')
+      temp_object.path.should =~ /\.cloud$/
     end
   end
 
@@ -364,6 +373,69 @@ describe Dragonfly::TempObject do
       pathname = Pathname.new(SAMPLES_DIR + '/round.gif')
       temp_object = Dragonfly::TempObject.new(pathname)
       temp_object.original_filename.should == 'round.gif'
+    end
+  end
+  
+  describe "meta" do
+    it "should default to an empty hash" do
+      Dragonfly::TempObject.new('sdf').meta.should == {}
+    end
+    it "should allow setting on initialize" do
+      Dragonfly::TempObject.new('sdf', :dub => 'wub').meta.should == {:dub => 'wub'}
+    end
+    it "should allow setting" do
+      temp_object = Dragonfly::TempObject.new('boo')
+      temp_object.meta = {:far => 'gone'}
+      temp_object.meta.should == {:far => 'gone'}
+    end
+  end
+
+  describe "name" do
+    it "should default to nil" do
+      Dragonfly::TempObject.new("HELLO").name.should be_nil
+    end
+    it "should allow setting the name via the meta" do
+      Dragonfly::TempObject.new("HELLO", :name => 'gosh.pig').name.should == "gosh.pig"
+    end
+    it "should fallback to the original filename if not set" do
+      content = "HELLO"
+      content.should_receive(:original_filename).and_return("some.egg")
+      temp_object = Dragonfly::TempObject.new(content)
+      temp_object.name.should == "some.egg"
+    end
+    it "should prefer the specified name to the original filename" do
+      content = "HELLO"
+      content.stub!(:original_filename).and_return("brase.nose")
+      temp_object = Dragonfly::TempObject.new("HELLO", :name => 'some.gug')
+      temp_object.name.should == "some.gug"
+    end
+    it "should allow setting with a setter" do
+      temp_object = Dragonfly::TempObject.new("HELLO")
+      temp_object.name = 'bugs'
+      temp_object.name.should == "bugs"
+    end
+  end
+  
+  describe "sanity check for using HasFilename" do
+    it "should act like Dragonfly::HasFilename" do
+      temp_object = Dragonfly::TempObject.new('h', :name => 'one.big.park')
+      temp_object.ext = 'smeagol'
+      temp_object.name.should == 'one.big.smeagol'
+    end
+  end
+  
+  describe "unique_id" do
+    before(:each) do
+      @temp_object = Dragonfly::TempObject.new('hello')
+    end
+    it "should return a unique id" do
+      @temp_object.unique_id.should =~ /^\d+$/
+    end
+    it "should be unique" do
+      @temp_object.unique_id.should_not == Dragonfly::TempObject.new('hello').unique_id
+    end
+    it "should not change" do
+      @temp_object.unique_id.should == @temp_object.unique_id
     end
   end
 

@@ -14,15 +14,17 @@ module Dragonfly
         :data, :to_file, :file, :tempfile, :path,
         :process, :encode, :analyse,
         :meta, :meta=,
-        :name, :basename, :ext, :size,
+        :name, :size,
         :url
+
+      include HasFilename
 
       alias_method :length, :size
       
       def initialize(model)
         @model = model
         self.uid = model_uid
-        update_from_uid if uid
+        set_job_from_uid if uid
         @should_run_callbacks = true
         self.class.ensure_uses_cached_magic_attributes
       end
@@ -50,7 +52,7 @@ module Dragonfly
           else app.new_job(value)
           end
           set_magic_attributes
-          update_meta
+          job.url_attrs = all_extra_attributes
           self.class.run_callbacks(:after_assign, model, self) if should_run_callbacks?
           retain! if should_retain?
         end
@@ -80,9 +82,8 @@ module Dragonfly
       end
 
       def name=(name)
-        job.name = name
         set_magic_attribute(:name, name) if has_magic_attribute_for?(:name)
-        name
+        job.name = name
       end
 
       def process!(*args)
@@ -151,13 +152,13 @@ module Dragonfly
             model.send("#{attribute}_#{key}=", value)
           end
           sync_with_model
-          update_from_uid
+          set_job_from_uid
           self.retained = true
         end
       end
       
       def inspect
-        "<Dragonfly Attachment uid=#{uid.inspect}, app=#{app.inspect}>"
+        "<Dragonfly Attachment uid=#{uid.inspect}, app=#{app.name.inspect}>"
       end
 
       protected
@@ -173,6 +174,7 @@ module Dragonfly
       end
 
       def store_job!
+        meta.merge!(all_extra_attributes)
         opts = self.class.evaluate_storage_opts(model, self)
         set_uid_and_model_uid job.store(opts)
         self.job = job.to_fetched_job(uid)
@@ -180,7 +182,7 @@ module Dragonfly
 
       def destroy_content(uid)
         app.datastore.destroy(uid)
-      rescue DataStorage::DataNotFound => e
+      rescue DataStorage::DataNotFound, DataStorage::DestroyError => e
         app.log.warn("*** WARNING ***: tried to destroy data with uid #{uid}, but got error: #{e}")
       end
 
@@ -212,7 +214,8 @@ module Dragonfly
       end
 
       def model_uid_will_change!
-        model.send("#{attribute}_uid_will_change!")
+        meth = "#{attribute}_uid_will_change!"
+        model.send(meth) if model.respond_to?(meth)
       end
       
       attr_reader :model, :uid
@@ -222,17 +225,6 @@ module Dragonfly
       def uid=(uid)
         self.previous_uid = @uid if @uid
         @uid = uid
-      end
-
-      def update_meta
-        magic_attributes.each{|property| meta[property] = model.send("#{attribute}_#{property}") }
-        meta[:model_class] = model.class.name
-        meta[:model_attachment] = attribute
-      end
-
-      def update_from_uid
-        self.job = app.fetch(uid)
-        update_meta
       end
 
       def magic_attributes
@@ -257,6 +249,29 @@ module Dragonfly
 
       def magic_attribute_for(property)
         model.send("#{attribute}_#{property}")
+      end
+
+      def magic_attributes_hash
+        magic_attributes.inject({}) do |attrs, property|
+          attrs[property] = model.send("#{attribute}_#{property}")
+          attrs
+        end
+      end
+
+      def extra_attributes
+        @extra_attributes ||= {
+          :model_class => model.class.name,
+          :model_attachment => attribute
+        }
+      end
+      
+      def all_extra_attributes
+        magic_attributes_hash.merge(extra_attributes)
+      end
+      
+      def set_job_from_uid
+        self.job = app.fetch(uid)
+        job.url_attrs = all_extra_attributes
       end
 
     end

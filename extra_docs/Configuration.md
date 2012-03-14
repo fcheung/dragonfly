@@ -72,7 +72,7 @@ Here is an example of an app with all attributes configured:
       
       # When using ImageMagick only...
       c.convert_command = "/opt/local/bin/convert"          # defaults to "convert"
-      c.identify_command = "/opt/local/bin/convert"         # defaults to "convert"
+      c.identify_command = "/opt/local/bin/identify"        # defaults to "identify"
       c.log_commands = true                                 # defaults to false
     end
 
@@ -111,14 +111,6 @@ The {Dragonfly::Config::Rails Rails configuration} points the log to the Rails l
 registers the {Dragonfly::Analysis::FileCommandAnalyser FileCommandAnalyser} for helping with mime_type validations.
 
 The file 'dragonfly/rails/images' does this for you.
-
-Heroku
-------
-
-    app.configure_with(:heroku, 's3_bucket_name')
-
-The {Dragonfly::Config::Heroku Heroku configuration} configures it to use the {Dragonfly::DataStorage::S3DataStore}, using Heroku's config attributes.
-See {file:Heroku} for more info.
 
 Custom Saved Configuration
 --------------------------
